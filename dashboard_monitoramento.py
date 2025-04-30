@@ -8,9 +8,7 @@ from datetime import datetime
 # URL da planilha
 URL = "https://docs.google.com/spreadsheets/d/1ljtZIWqQqfFYj6ubxpc8okHknoS1cuVXH0nq_lD6oOk/export?format=csv"
 
-from PIL import Image
-logo = Image.open("logo.png")
-st.image(logo, width=150)
+
 st.title("🌍 Painel de Monitoramento Internacional")
 st.write("Este painel coleta links de fontes oficiais e faz leitura de conteúdo relevante por país, fonte e tema.")
 
