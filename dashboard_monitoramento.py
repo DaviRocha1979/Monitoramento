@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import requests
@@ -15,25 +14,44 @@ st.write("Este painel coleta links de fontes oficiais e faz leitura de conteúdo
 # Carrega a planilha
 df_raw = pd.read_csv(URL)
 
-# Transforma a planilha: linhas = fontes, colunas = países
-df_long = df_raw.set_index(df_raw.columns[0]).T
+# Nome da coluna de fonte (primeira coluna)
+coluna_fonte = df_raw.columns[0]
+
+# Transforma: linhas = fontes, colunas = países
+df_long = df_raw.set_index(coluna_fonte).T
 df_long = df_long.reset_index().rename(columns={"index": "País"})
 
 # Sidebar de filtros
 paises = df_long["País"].unique().tolist()
 pais = st.sidebar.selectbox("🌐 Selecione o país", paises)
 
-tipos = df_raw[df_raw.columns[0]].tolist()
+tipos = df_raw[coluna_fonte].tolist()
+tipos.insert(0, "geral")
 tipo = st.sidebar.selectbox("🏛️ Tipo de fonte", tipos)
 
-tema = st.sidebar.text_input("📰 Tema a buscar nas notícias", "vacinação")
+tema = st.sidebar.text_input("📰 Tema a buscar nas notícias (opcional)", "")
 
-# Filtra os links com base nos critérios
-links = df_long[df_long["País"] == pais][tipo].dropna().tolist()
+# Coleta os links com base no filtro
+links = []
+
+if tipo.lower() == "geral":
+    # Pega todas as fontes do país
+    pais_linhas = df_long[df_long["País"] == pais].drop("País", axis=1)
+    geral_linha = df_raw[df_raw[coluna_fonte].str.lower() == "geral"]
+    geral_links = []
+    if not geral_linha.empty:
+        geral_links = geral_linha.iloc[0][1:].dropna().tolist()
+    links = pais_linhas.values.flatten().tolist() + geral_links
+else:
+    linha_tipo = df_long[df_long["País"] == pais][tipo]
+    links = linha_tipo.dropna().tolist()
+
+# Limpa os links
+links = [l for l in links if isinstance(l, str) and l.startswith("http")]
 
 st.subheader(f"🔗 {len(links)} links encontrados para análise")
 
-# Função para extrair texto do link
+# Função para extrair texto e idioma
 def extrair_conteudo(url):
     try:
         resposta = requests.get(url, timeout=5)
@@ -45,11 +63,11 @@ def extrair_conteudo(url):
     except:
         return "", "erro"
 
-# Coleta resultados relevantes
+# Análise
 resultados = []
 for url in links:
     texto, idioma = extrair_conteudo(url)
-    if tema.lower() in texto.lower() and idioma == "pt":
+    if idioma == "pt" and (tema.strip() == "" or tema.lower() in texto.lower()):
         resultados.append({
             "URL": url,
             "Idioma": idioma,
@@ -59,11 +77,11 @@ for url in links:
 
 # Exibe resultados
 if resultados:
-    st.success(f"{len(resultados)} resultados encontrados com o tema '{tema}' em português:")
+    st.success(f"{len(resultados)} resultados encontrados" + (f" com o tema '{tema}'" if tema.strip() else "") + ":")
     for r in resultados:
         st.markdown(f"### 🔗 [{r['URL']}]({r['URL']})")
         st.markdown(f"📅 Coleta: {r['Data de Coleta']} | 🌐 Idioma: {r['Idioma']}")
         st.write(r["Trecho Encontrado"])
         st.markdown("---")
 else:
-    st.warning("Nenhuma notícia encontrada com o tema e idioma especificado.")
+    st.warning("Nenhuma notícia encontrada com os filtros aplicados.")
